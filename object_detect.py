@@ -19,10 +19,8 @@ ped_id = 1.0 # Person ID
 
 # Load the video
 file_name = args.file_name
-output_dir = f"./{file_name}"
-os.makedirs(output_dir, exist_ok=True)
 
-video_path = f"/home/sina/env_prediction_project/object_detection/video_samples/{file_name}.mp4" 
+video_path = f"/home/sina/env_prediction_project/trajectory_detection/video_samples/{file_name}.mp4" 
 cap = cv2.VideoCapture(video_path)
 
 # Check if video opened successfully
@@ -30,18 +28,38 @@ if not cap.isOpened():
     print("Error opening video file")
     exit()
 
+# Make directory to save waypoints
+output_dir = f"./{file_name}"
+os.makedirs(output_dir, exist_ok=True)
+
 # Define the desired framerate
 desired_fps = 25  # Desired framerate
 frame_delay = int(1000 / desired_fps)  # Delay between frames in milliseconds
 
-# Homography: Define four known points in image & real-world coordinates
+### Homography: define image & real-world points
+# ## In Lab - Door corner
+# image_points = np.array([
+#     [319, 58], [547, 132], [382, 313], [127, 209]
+# ], dtype=np.float32)
+# real_world_points = np.array([
+#     [72, 84], [192, 84], [192, -36], [72, -36]
+# ], dtype=np.float32)
+
+## In Lab - Mata's Desk
 image_points = np.array([
-    [319, 58], [547, 132], [382, 313], [127, 209]
+    [547, 132], [1135, 231], [1066, 590], [432, 512]
+], dtype=np.float32)
+real_world_points = np.array([
+    [253, 151], [13, 91], [13, 271], [193, 331]
 ], dtype=np.float32)
 
-real_world_points = np.array([
-    [72, 84], [192, 84], [192, -36], [72, -36]
-], dtype=np.float32)
+# # ## Big Aisle - Left side of orange cone
+# image_points = np.array([
+#     [224, 184], [504, 164], [544, 506], [154, 539]
+# ], dtype=np.float32)
+# real_world_points = np.array([
+#     [0, 180], [120, 180], [120, 0], [0, 0]
+# ], dtype=np.float32)
 
 H, _ = cv2.findHomography(image_points, real_world_points)
 
@@ -50,7 +68,7 @@ while cap.isOpened():
     if not ret:
         break  # Stop when video ends
     
-    frame_count += 1  # Increment frame count (timestep)
+    frame_count += 1
 
     # Run YOLO on the frame
     results = model(frame)
@@ -59,8 +77,9 @@ while cap.isOpened():
     for result in results:
         for box in result.boxes.data:
             x1, y1, x2, y2, conf, cls = box.cpu().numpy()
+            print(cls)
 
-            if int(cls) == 0 and conf > 0.7:  # Class 0 = "person"
+            if int(cls) == 0 and conf > 0.7:  # Class 0 = "person", Class 36 = "skateboard", Class 39 = "bottle"
                 # Compute center of the bounding box
                 cx, cy = int((x1 + x2) / 2), int(y2) # Bottom-middle of the box
 
@@ -74,6 +93,12 @@ while cap.isOpened():
                 # Draw the bounding box and waypoint
                 cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
                 cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
+
+                # Display confidence value
+                confidence_text = f"Confidence: {conf:.2f}"
+                text_position = (int(cx) + 10, int(cy) - 10)
+                cv2.putText(frame, confidence_text, text_position, 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             else:
                 waypoints.append((frame_count, None, None))
 

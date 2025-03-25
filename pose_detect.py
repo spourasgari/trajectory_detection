@@ -13,72 +13,74 @@ args = parser.parse_args()
 model = YOLO("yolov8n-pose.pt")
 
 # Initialize variables
-frame_count = 0
-waypoints = []
-ped_id = 1.0
+frame_count = 0 # Timestep counter
+waypoints = [] # Store waypoints
+ped_id = 1.0 # Person ID
 
 # Load video
 file_name = args.file_name
-output_dir = f"./{file_name}"
-os.makedirs(output_dir, exist_ok=True)
 
-video_path = f"/home/sina/env_prediction_project/object_detection/video_samples/{file_name}.mp4"
+video_path = f"/home/sina/env_prediction_project/trajectory_detection/video_samples/{file_name}.mp4"
 cap = cv2.VideoCapture(video_path)
 
+# Check if video opened successfully
 if not cap.isOpened():
     print("Error opening video file")
     exit()
+
+# Make directory to save waypoints
+output_dir = f"./{file_name}"
+os.makedirs(output_dir, exist_ok=True)
 
 # Desired framerate
 desired_fps = 25
 frame_delay = int(1000 / desired_fps)
 
-# Homography: define image & real-world points
+### Homography: define image & real-world points
 # ## In Lab - Door corner
 # image_points = np.array([
 #     [319, 58], [547, 132], [382, 313], [127, 209]
 # ], dtype=np.float32)
-
 # real_world_points = np.array([
 #     [72, 84], [192, 84], [192, -36], [72, -36]
 # ], dtype=np.float32)
 
-# ## In Lab - Mata's Desk
-# image_points = np.array([
-#     [547, 132], [1135, 231], [1066, 590], [432, 512]
-# ], dtype=np.float32)
-
-# real_world_points = np.array([
-#     [253, 151], [13, 91], [13, 271], [193, 331]
-# ], dtype=np.float32)
-
-# ## Big Aisle - Left side of orange cone
+## In Lab - Mata's Desk
 image_points = np.array([
-    [224, 184], [504, 164], [544, 506], [154, 539]
+    [547, 132], [1135, 231], [1066, 590], [432, 512]
+], dtype=np.float32)
+real_world_points = np.array([
+    [253, 151], [13, 91], [13, 271], [193, 331]
 ], dtype=np.float32)
 
-real_world_points = np.array([
-    [0, 180], [120, 180], [120, 0], [0, 0]
-], dtype=np.float32)
+# # ## Big Aisle - Left side of orange cone
+# image_points = np.array([
+#     [224, 184], [504, 164], [544, 506], [154, 539]
+# ], dtype=np.float32)
+# real_world_points = np.array([
+#     [0, 180], [120, 180], [120, 0], [0, 0]
+# ], dtype=np.float32)
 
 H, _ = cv2.findHomography(image_points, real_world_points)
 
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
-        break
+        break # Stop when video ends
 
     frame_count += 1
 
+    # Run YOLO on the frame
     results = model(frame)
 
+    # Extract detections
     for result in results:
         keypoints = result.keypoints
         boxes = result.boxes
 
         if keypoints.has_visible:
             for box_conf, kps in zip(boxes.conf.cpu().numpy(), keypoints.data.cpu().numpy()):
-                if box_conf < 0.5:
+                if box_conf < 0.4:
                     continue
                 # for kp in kps:
                 # kp shape: (17, 3) => (x, y, confidence)
@@ -89,7 +91,7 @@ while cap.isOpened():
                 left_ankle = kps[15]  # x, y, conf
                 right_ankle = kps[16]
 
-                if left_ankle[2] > 0.60 and right_ankle[2] > 0.60:
+                if left_ankle[2] > 0.50 and right_ankle[2] > 0.50:
                     cx = (left_ankle[0] + right_ankle[0]) / 2
                     cy = (left_ankle[1] + right_ankle[1]) / 2
 
@@ -100,7 +102,9 @@ while cap.isOpened():
                     X, Y = transformed_point[0][0]
 
                     waypoints.append((frame_count, X, Y))
+
                     cv2.circle(frame, (int(cx), int(cy)), 5, (0, 255, 0), -1)
+                    
                     # Display confidence value
                     confidence_text = f"avg_conf: {box_conf:.2f}, {left_ankle[2]:.2f}, {right_ankle[2]:.2f}"
                     text_position = (int(cx) + 10, int(cy) - 10)
