@@ -42,4 +42,4 @@ Thumbs.db
 *.mp4
 *.jpg
 
-/pycache/*
+./pycache/*
