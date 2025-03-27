@@ -14,23 +14,23 @@ import numpy as np
 #     [72, 84], [192, 84], [192, -36], [72, -36]
 # ], dtype=np.float32)
 
-# ## In Lab - Mata's Desk
-# image_points = np.array([
-#     [547, 132], [1135, 231], [1066, 590], [432, 512]
-# ], dtype=np.float32)
-
-# real_world_points = np.array([
-#     [253, 151], [13, 91], [13, 271], [193, 331]
-# ], dtype=np.float32)
-
-# ## Big Aisle - Left side of orange cone
+## In Lab - Mata's Desk
 image_points = np.array([
-    [224, 184], [504, 164], [544, 506], [154, 539]
+    [547, 132], [1135, 231], [1066, 590], [432, 512]
 ], dtype=np.float32)
 
 real_world_points = np.array([
-    [0, 180], [120, 180], [120, 0], [0, 0]
+    [253, 151], [13, 91], [13, 271], [193, 331]
 ], dtype=np.float32)
+
+# # ## Big Aisle - Left side of orange cone
+# image_points = np.array([
+#     [224, 184], [504, 164], [544, 506], [154, 539]
+# ], dtype=np.float32)
+
+# real_world_points = np.array([
+#     [0, 180], [120, 180], [120, 0], [0, 0]
+# ], dtype=np.float32)
 
 H, _ = cv2.findHomography(image_points, real_world_points)
 # print(H)
