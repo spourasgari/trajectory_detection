@@ -20,7 +20,7 @@ ped_id = 1.0 # Person ID
 # Load video
 file_name = args.file_name
 
-video_path = f"/home/sina/env_prediction_project/trajectory_detection/video_samples/{file_name}.mp4"
+video_path = f"./Recorded Datasets/video_samples/{file_name}.mp4"
 cap = cv2.VideoCapture(video_path)
 
 # Check if video opened successfully
@@ -29,12 +29,17 @@ if not cap.isOpened():
     exit()
 
 # Make directory to save waypoints
-output_dir = f"./{file_name}"
+output_dir = f"./Recorded Datasets/{file_name}"
 os.makedirs(output_dir, exist_ok=True)
 
 # Desired framerate
-desired_fps = 25
+# desired_fps = 25
+desired_fps = cap.get(cv2.CAP_PROP_FPS)
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+print(f"Total frames in video: {total_frames}")
 frame_delay = int(1000 / desired_fps)
+
+print(desired_fps)
 
 ### Homography: define image & real-world points
 # ## In Lab - Door corner
@@ -69,6 +74,7 @@ while cap.isOpened():
         break # Stop when video ends
 
     frame_count += 1
+    timestamp = frame_count / desired_fps  # Calculate the timestamp
 
     # Run YOLO on the frame
     results = model(frame)
@@ -80,7 +86,7 @@ while cap.isOpened():
 
         if keypoints.has_visible:
             for box_conf, kps in zip(boxes.conf.cpu().numpy(), keypoints.data.cpu().numpy()):
-                if box_conf < 0.4:
+                if box_conf < 0.5:
                     continue
                 # for kp in kps:
                 # kp shape: (17, 3) => (x, y, confidence)
@@ -91,7 +97,7 @@ while cap.isOpened():
                 left_ankle = kps[15]  # x, y, conf
                 right_ankle = kps[16]
 
-                if left_ankle[2] > 0.50 and right_ankle[2] > 0.50:
+                if left_ankle[2] > 0.60 and right_ankle[2] > 0.60:
                     cx = (left_ankle[0] + right_ankle[0]) / 2
                     cy = (left_ankle[1] + right_ankle[1]) / 2
 
@@ -101,24 +107,25 @@ while cap.isOpened():
                     transformed_point = cv2.perspectiveTransform(input_point, H)
                     X, Y = transformed_point[0][0]
 
-                    waypoints.append((frame_count, X, Y))
+                    waypoints.append((timestamp, X, Y))
 
                     cv2.circle(frame, (int(cx), int(cy)), 5, (0, 255, 0), -1)
                     
                     # Display confidence value
-                    confidence_text = f"avg_conf: {box_conf:.2f}, {left_ankle[2]:.2f}, {right_ankle[2]:.2f}"
+                    confidence_text = f"box_conf: {box_conf:.2f}, {left_ankle[2]:.2f}, {right_ankle[2]:.2f}"
                     text_position = (int(cx) + 10, int(cy) - 10)
                     cv2.putText(frame, confidence_text, text_position, 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                         
                 else:
-                    waypoints.append((frame_count, None, None))
+                    waypoints.append((timestamp, None, None))
         else:
-            waypoints.append((frame_count, None, None))
+            waypoints.append((timestamp, None, None))
 
-    cv2.imshow("Tracking", frame)
+    if frame_count % 10 == 0:  # Show every 10th frame
+        cv2.imshow("Tracking", frame)
 
-    key = cv2.waitKey(frame_delay) & 0xFF
+    key = cv2.waitKey(1) & 0xFF
     if key == ord('p'):
         print("Paused... Press 'p' to resume or 'q' to quit.")
         while True:
@@ -136,50 +143,78 @@ cap.release()
 cv2.destroyAllWindows()
 
 # Save full-resolution waypoints
-with open(os.path.join(output_dir, "pose_waypoints.txt"), "w") as f:
+with open(os.path.join(output_dir, "pose_waypoints_full.txt"), "w") as f:
     f.truncate(0)
     for point in waypoints:
         f.write(f"{point[0]}\t{ped_id}\t{point[1]}\t{point[2]}\n")
 
-print("Waypoints saved to", os.path.join(output_dir, "pose_waypoints.txt"))
+print("Waypoints saved to", os.path.join(output_dir, "pose_waypoints_full.txt"))
+
+# Sampling
+freq = 10  # 1 Hz
+# sampling_interval = int(desired_fps / freq)
+sampling_interval = 1 / freq
+sampled_waypoints = []
+
+next_sample_time = 0.0
+for timestamp, X, Y in waypoints:
+    if timestamp >= next_sample_time:
+        sampled_waypoints.append((timestamp, X, Y))
+        next_sample_time += sampling_interval
+
+# for i in range(0, len(waypoints), sampling_interval):
+#     group = waypoints[i:i + sampling_interval]
+#     valid_points = [(X, Y) for _, X, Y in group if X is not None and Y is not None]
+
+#     if valid_points:
+#         avg_X = sum(p[0] for p in valid_points) / len(valid_points)
+#         avg_Y = sum(p[1] for p in valid_points) / len(valid_points)
+#         sampled_waypoints.append((group[0][0], avg_X, avg_Y))
+
+# Save sampled waypoints
+with open(os.path.join(output_dir, "pose_waypoints_sampled_10hz.txt"), "w") as f:
+    f.truncate(0)
+    for point in sampled_waypoints:
+        f.write(f"{point[0]}\t{ped_id}\t{point[1]}\t{point[2]}\n")
+
+print("Sampled waypoints saved to", os.path.join(output_dir, "pose_waypoints_sampled_10hz.txt"))
+
+# # Smoothing
+# def moving_average(data, window_size=5):
+#     smoothed = []
+#     for i in range(len(data)):
+#         window = data[max(0, i - window_size + 1):i + 1]
+#         avg_x = sum(p[1] for p in window) / len(window)
+#         avg_y = sum(p[2] for p in window) / len(window)
+#         smoothed.append((data[i][0], avg_x, avg_y))
+#     return smoothed
+
+# smoothed_waypoints = moving_average(sampled_waypoints)
+
+# # Save smoothed waypoints
+# with open(os.path.join(output_dir, "pose_waypoints_smoothed.txt"), "w") as f:
+#     for point in smoothed_waypoints:
+#         f.write(f"{point[0]}\t{ped_id}\t{point[1]:.2f}\t{point[2]:.2f}\n")
+
+# print("Smoothed waypoints saved to", os.path.join(output_dir, "pose_waypoints_smoothed.txt"))
+
 
 # Sampling
 freq = 2.5  # 1 Hz
-sampling_interval = int(desired_fps / freq)
+# sampling_interval = int(desired_fps / freq)
+sampling_interval = 1 / freq
 sampled_waypoints = []
 
-for i in range(0, len(waypoints), sampling_interval):
-    group = waypoints[i:i + sampling_interval]
-    valid_points = [(X, Y) for _, X, Y in group if X is not None and Y is not None]
-
-    if valid_points:
-        avg_X = sum(p[0] for p in valid_points) / len(valid_points)
-        avg_Y = sum(p[1] for p in valid_points) / len(valid_points)
-        sampled_waypoints.append((group[0][0], avg_X, avg_Y))
+next_sample_time = 0.0
+for timestamp, X, Y in waypoints:
+    if timestamp >= next_sample_time:
+        sampled_waypoints.append((timestamp, X, Y))
+        next_sample_time += sampling_interval
 
 # Save sampled waypoints
-with open(os.path.join(output_dir, "pose_waypoints_sampled.txt"), "w") as f:
+with open(os.path.join(output_dir, "pose_waypoints_sampled_2.5hz.txt"), "w") as f:
     f.truncate(0)
     for point in sampled_waypoints:
-        f.write(f"{point[0]}\t{ped_id}\t{point[1]:.2f}\t{point[2]:.2f}\n")
+        f.write(f"{point[0]}\t{ped_id}\t{point[1]}\t{point[2]}\n")
 
-print("Sampled waypoints saved to", os.path.join(output_dir, "pose_waypoints_sampled.txt"))
-
-# Smoothing
-def moving_average(data, window_size=5):
-    smoothed = []
-    for i in range(len(data)):
-        window = data[max(0, i - window_size + 1):i + 1]
-        avg_x = sum(p[1] for p in window) / len(window)
-        avg_y = sum(p[2] for p in window) / len(window)
-        smoothed.append((data[i][0], avg_x, avg_y))
-    return smoothed
-
-smoothed_waypoints = moving_average(sampled_waypoints)
-
-# Save smoothed waypoints
-with open(os.path.join(output_dir, "pose_waypoints_smoothed.txt"), "w") as f:
-    for point in smoothed_waypoints:
-        f.write(f"{point[0]}\t{ped_id}\t{point[1]:.2f}\t{point[2]:.2f}\n")
-
-print("Smoothed waypoints saved to", os.path.join(output_dir, "pose_waypoints_smoothed.txt"))
+print("Sampled waypoints saved to", os.path.join(output_dir, "pose_waypoints_sampled_2.5hz.txt"))
