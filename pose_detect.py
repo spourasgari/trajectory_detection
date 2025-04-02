@@ -85,19 +85,24 @@ while cap.isOpened():
         boxes = result.boxes
 
         if keypoints.has_visible:
-            for box_conf, kps in zip(boxes.conf.cpu().numpy(), keypoints.data.cpu().numpy()):
-                if box_conf < 0.5:
-                    continue
-                # for kp in kps:
-                # kp shape: (17, 3) => (x, y, confidence)
-                    # kp = kp.cpu().numpy()
-                keypoint_confidences = kps[:, 2]
+            # for box_conf, kps in zip(boxes.conf.cpu().numpy(), keypoints.data.cpu().numpy()):
+            # Find the detection with the maximum box_conf
+            max_index = np.argmax(boxes.conf.cpu().numpy())
+            max_box_conf = boxes.conf.cpu().numpy()[max_index]
+            max_kps = keypoints.data.cpu().numpy()[max_index]
+            
+            if max_box_conf >= 0.5:
+                # continue
+            # for kp in kps:
+            # kp shape: (17, 3) => (x, y, confidence)
+                # kp = kp.cpu().numpy()
+                keypoint_confidences = max_kps[:, 2]
                 avg_conf = np.mean(keypoint_confidences)
-                # if avg_conf > 0.48:
-                left_ankle = kps[15]  # x, y, conf
-                right_ankle = kps[16]
+            
+                left_ankle = max_kps[15]  # x, y, conf
+                right_ankle = max_kps[16]
 
-                if left_ankle[2] > 0.60 and right_ankle[2] > 0.60:
+                if left_ankle[2] > 0.70 and right_ankle[2] > 0.70:
                     cx = (left_ankle[0] + right_ankle[0]) / 2
                     cy = (left_ankle[1] + right_ankle[1]) / 2
 
@@ -112,18 +117,20 @@ while cap.isOpened():
                     cv2.circle(frame, (int(cx), int(cy)), 5, (0, 255, 0), -1)
                     
                     # Display confidence value
-                    confidence_text = f"box_conf: {box_conf:.2f}, {left_ankle[2]:.2f}, {right_ankle[2]:.2f}"
+                    confidence_text = f"box_conf: {max_box_conf:.2f}, {left_ankle[2]:.2f}, {right_ankle[2]:.2f}"
                     text_position = (int(cx) + 10, int(cy) - 10)
                     cv2.putText(frame, confidence_text, text_position, 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                        
+                    
                 else:
                     waypoints.append((timestamp, None, None))
+            else:
+                waypoints.append((timestamp, None, None))
         else:
             waypoints.append((timestamp, None, None))
 
-    if frame_count % 10 == 0:  # Show every 10th frame
-        cv2.imshow("Tracking", frame)
+    # if frame_count % 10 == 0:  # Show every 10th frame
+    cv2.imshow("Tracking", frame)
 
     key = cv2.waitKey(1) & 0xFF
     if key == ord('p'):
@@ -143,12 +150,13 @@ cap.release()
 cv2.destroyAllWindows()
 
 # Save full-resolution waypoints
-with open(os.path.join(output_dir, "pose_waypoints_full.txt"), "w") as f:
+with open(os.path.join(output_dir, "pose_waypoints_full_raw.csv"), "w") as f:
     f.truncate(0)
+    f.write("timestamp,ped_id,x,y\n") # Header
     for point in waypoints:
-        f.write(f"{point[0]}\t{ped_id}\t{point[1]}\t{point[2]}\n")
+        f.write(f"{point[0]},{ped_id},{point[1]},{point[2]}\n")
 
-print("Waypoints saved to", os.path.join(output_dir, "pose_waypoints_full.txt"))
+print("Waypoints saved to", os.path.join(output_dir, "pose_waypoints_full_raw.csv"))
 
 # Sampling
 freq = 10  # 1 Hz
@@ -172,12 +180,13 @@ for timestamp, X, Y in waypoints:
 #         sampled_waypoints.append((group[0][0], avg_X, avg_Y))
 
 # Save sampled waypoints
-with open(os.path.join(output_dir, "pose_waypoints_sampled_10hz.txt"), "w") as f:
+with open(os.path.join(output_dir, "pose_waypoints_sampled_10hz_raw.csv"), "w") as f:
     f.truncate(0)
+    f.write("timestamp,ped_id,x,y\n") # Header
     for point in sampled_waypoints:
-        f.write(f"{point[0]}\t{ped_id}\t{point[1]}\t{point[2]}\n")
+        f.write(f"{point[0]},{ped_id},{point[1]},{point[2]}\n")
 
-print("Sampled waypoints saved to", os.path.join(output_dir, "pose_waypoints_sampled_10hz.txt"))
+print("Sampled waypoints saved to", os.path.join(output_dir, "pose_waypoints_sampled_10hz_raw.csv"))
 
 # # Smoothing
 # def moving_average(data, window_size=5):
@@ -192,11 +201,13 @@ print("Sampled waypoints saved to", os.path.join(output_dir, "pose_waypoints_sam
 # smoothed_waypoints = moving_average(sampled_waypoints)
 
 # # Save smoothed waypoints
-# with open(os.path.join(output_dir, "pose_waypoints_smoothed.txt"), "w") as f:
-#     for point in smoothed_waypoints:
-#         f.write(f"{point[0]}\t{ped_id}\t{point[1]:.2f}\t{point[2]:.2f}\n")
+# with open(os.path.join(output_dir, "pose_waypoints_smoothed_raw.csv"), "w") as f:
+#    f.truncate(0)
+#    f.write("timestamp,ped_id,x,y\n") # Header
+#    for point in smoothed_waypoints:
+#        f.write(f"{point[0]},{ped_id},{point[1]},{point[2]}\n")
 
-# print("Smoothed waypoints saved to", os.path.join(output_dir, "pose_waypoints_smoothed.txt"))
+# print("Smoothed waypoints saved to", os.path.join(output_dir, "pose_waypoints_smoothed_raw.csv"))
 
 
 # Sampling
@@ -212,9 +223,10 @@ for timestamp, X, Y in waypoints:
         next_sample_time += sampling_interval
 
 # Save sampled waypoints
-with open(os.path.join(output_dir, "pose_waypoints_sampled_2.5hz.txt"), "w") as f:
+with open(os.path.join(output_dir, "pose_waypoints_sampled_2.5hz_raw.csv"), "w") as f:
     f.truncate(0)
+    f.write("timestamp,ped_id,x,y\n") # Header
     for point in sampled_waypoints:
-        f.write(f"{point[0]}\t{ped_id}\t{point[1]}\t{point[2]}\n")
+        f.write(f"{point[0]},{ped_id},{point[1]},{point[2]}\n")
 
-print("Sampled waypoints saved to", os.path.join(output_dir, "pose_waypoints_sampled_2.5hz.txt"))
+print("Sampled waypoints saved to", os.path.join(output_dir, "pose_waypoints_sampled_2.5hz_raw.csv"))
