@@ -7,6 +7,7 @@ import os
 # Parse command-line argument
 parser = argparse.ArgumentParser()
 parser.add_argument("file_name", type=str, nargs="?", default="inlab1", help="Name of the video file (without extension)")
+parser.add_argument("--video_path", type=str, help="Full path to the video file (overrides file_name if provided)")
 args = parser.parse_args()
 
 # Load YOLOv8 pose model
@@ -21,6 +22,17 @@ ped_id = 1.0 # Person ID
 file_name = args.file_name
 
 video_path = f"./Recorded Datasets/video_samples/{file_name}.mp4"
+
+
+if args.video_path:
+    video_path = args.video_path
+    file_name = os.path.splitext(os.path.basename(video_path))[0]
+else:
+    file_name = args.file_name
+    video_path = f"./Recorded Datasets/video_samples/{file_name}.mp4"
+
+print(video_path)
+print(file_name)
 cap = cv2.VideoCapture(video_path)
 
 # Check if video opened successfully
@@ -42,29 +54,18 @@ frame_delay = int(1000 / desired_fps)
 print(desired_fps)
 
 ### Homography: define image & real-world points
-# ## In Lab - Door corner
-# image_points = np.array([
-#     [319, 58], [547, 132], [382, 313], [127, 209]
-# ], dtype=np.float32)
-# real_world_points = np.array([
-#     [72, 84], [192, 84], [192, -36], [72, -36]
-# ], dtype=np.float32)
 
 ## In Lab - Mata's Desk
+print("** NOTE THAT TRANSFORMATION IS BEING APPLIED BASED ON THE VIDEOS IN NewTest FOLDER ***")
+# Replace these values for the inlab_eval videos: [547, 132], [1135, 231], [1066, 590], [432, 512]
 image_points = np.array([
-    [547, 132], [1135, 231], [1066, 590], [432, 512]
+    [564, 163], [1046, 244], [990, 538], [469, 474]
 ], dtype=np.float32)
 real_world_points = np.array([
     [253, 151], [13, 91], [13, 271], [193, 331]
 ], dtype=np.float32)
 
-# # ## Big Aisle - Left side of orange cone
-# image_points = np.array([
-#     [224, 184], [504, 164], [544, 506], [154, 539]
-# ], dtype=np.float32)
-# real_world_points = np.array([
-#     [0, 180], [120, 180], [120, 0], [0, 0]
-# ], dtype=np.float32)
+    
 
 H, _ = cv2.findHomography(image_points, real_world_points)
 
@@ -91,7 +92,7 @@ while cap.isOpened():
             max_box_conf = boxes.conf.cpu().numpy()[max_index]
             max_kps = keypoints.data.cpu().numpy()[max_index]
             
-            if max_box_conf >= 0.5:
+            if max_box_conf >= 0.55:
                 # continue
             # for kp in kps:
             # kp shape: (17, 3) => (x, y, confidence)
