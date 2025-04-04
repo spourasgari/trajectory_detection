@@ -31,8 +31,8 @@ else:
     file_name = args.file_name
     video_path = f"./Recorded Datasets/video_samples/{file_name}.mp4"
 
-print(video_path)
-print(file_name)
+# print(video_path)
+# print(file_name)
 cap = cv2.VideoCapture(video_path)
 
 # Check if video opened successfully
@@ -48,10 +48,10 @@ os.makedirs(output_dir, exist_ok=True)
 # desired_fps = 25
 desired_fps = cap.get(cv2.CAP_PROP_FPS)
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-print(f"Total frames in video: {total_frames}")
+# print(f"Total frames in video: {total_frames}")
 frame_delay = int(1000 / desired_fps)
 
-print(desired_fps)
+print('FPS:', desired_fps)
 
 ### Homography: define image & real-world points
 
@@ -78,7 +78,7 @@ while cap.isOpened():
     timestamp = frame_count / desired_fps  # Calculate the timestamp
 
     # Run YOLO on the frame
-    results = model(frame)
+    results = model(frame, verbose=False)
 
     # Extract detections
     for result in results:
