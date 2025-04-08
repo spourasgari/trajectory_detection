@@ -92,7 +92,7 @@ while cap.isOpened():
             max_box_conf = boxes.conf.cpu().numpy()[max_index]
             max_kps = keypoints.data.cpu().numpy()[max_index]
             
-            if max_box_conf >= 0.55:
+            if max_box_conf >= 0.50:
                 # continue
             # for kp in kps:
             # kp shape: (17, 3) => (x, y, confidence)

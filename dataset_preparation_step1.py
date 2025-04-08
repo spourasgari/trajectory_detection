@@ -8,9 +8,9 @@ import pandas as pd
 import math
 import matplotlib.pyplot as plt
 
-# Define the base directory
-# base_dir = "/home/sina/env_prediction_project/trajectory_detection/Recorded Datasets"
-base_dir = '/home/sina/env_prediction_project/trajectory_detection/Recorded Datasets/inlab_eval_3'
+# Define the base directory (it will clean everything in the base directory and its subdirectories, saves them in the same place)
+base_dir = "/home/sina/env_prediction_project/trajectory_detection/Recorded Datasets"
+# base_dir = '/home/sina/env_prediction_project/trajectory_detection/Recorded Datasets/inlab_eval_3'
 
 # If you want to have a histogram of the velocities, set this to True
 vel_histogram = False
